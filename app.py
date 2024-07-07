@@ -1,5 +1,6 @@
 import streamlit as st
 
+import folium
 from streamlit_folium import st_folium
 
 import pandas as pd
@@ -17,35 +18,20 @@ st.write("Демонстрация работы веб-приложения")
 import pandas as pd
 import numpy as np
 
-import matplotlib.patheffects as path_effects
-import os
-
-import geojson
 import geopandas as gpd
 
 from scipy.cluster.vq import kmeans2, vq
 
 from catboost import CatBoostRegressor, Pool
 from sklearn.ensemble import RandomForestRegressor
-import xgboost as xgb
 
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
+from sklearn.metrics import mean_squared_error
 
-from shapely.geometry import shape
-from shapely import GeometryCollection, LineString, MultiPoint, Point, Polygon, minimum_bounding_radius, minimum_bounding_circle
+from shapely import Point, Polygon
 
-import folium
-from streamlit_folium import folium_static
-from folium.plugins import HeatMap, Fullscreen
-
-import pydeck as pdk
-import matplotlib.pyplot as plt
-
-import seaborn as sns
 import warnings
 warnings.filterwarnings('ignore')
-
 
 def to_azimuth(point, dist, angle):
     lon = point.x * np.pi / 180
@@ -99,8 +85,6 @@ df = df[df_xy.r <=100000]
 points = points.iloc[points.index.isin(set(df.points))]
 
 df_xy = df_xy[df_xy.r <=100000]
-# ax = df_xy.plot.scatter('x', 'y').axis("square")
-
 
 # Кластеризация
 
@@ -115,56 +99,6 @@ print(f"Кластеров: {len(set(clusters))}\nСреднее расстоя�
 points["mean_value"] = df.groupby("points")["value"].mean().astype(int)
 points["qty"] = df.groupby("points")["value"].count()
 
-# plt.figure(figsize=(20, 20))
-# ax = sns.pairplot(points[['mean_value', 'qty', 'azimuth']])
-
-m = folium.Map(location=(55.755826, 37.6173), zoom_start=9, attributionControl=0)
-folium.TileLayer('CartoDB positron', name = 'CartoDB positron').add_to(m)
-folium.TileLayer('https://mt0.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
-                 attr = 'Google Satellite', name = 'Google Спутник').add_to(m)
-folium.TileLayer('http://mt0.google.com/vt/lyrs=y&hl=ru&x={x}&y={y}&z={z}',
-                 attr = 'Google Hybrid', name = 'Google Гибрид').add_to(m)
-folium.TileLayer('https://mt0.google.com/vt/lyrs=m&hl=ru&x={x}&y={y}&z={z}',
-                 attr = 'Google Roadmap', name = 'Google Схема').add_to(m)
-
-fg = folium.FeatureGroup(name='>1 кампании', show=True)
-m.add_child(fg)
-gdf_points = gpd.GeoDataFrame(points[points['qty']>1][['mean_value', 'qty', 'coordinates']])
-gdf_points.set_geometry('coordinates', inplace=True)
-gdf_points.set_crs(epsg=4326, inplace=True)
-gdf_points['color'] = gdf_points.mean_value.map(lambda x : np.log10(x+1)/np.log10(100))
-gdf_points.explore(column='color', cmap='winter', m=fg, legend=False) # RdYlGn
-
-fg = folium.FeatureGroup(name='Успешные кампании', show=False)
-m.add_child(fg)
-gdf_points = gpd.GeoDataFrame(points[points['mean_value']>30][['mean_value', 'qty', 'coordinates']])
-gdf_points.set_geometry('coordinates', inplace=True)
-gdf_points.set_crs(epsg=4326, inplace=True)
-gdf_points['color'] = gdf_points.mean_value.map(lambda x : 'red' if x<=10 else 'blue' if x<30 else 'green')
-gdf_points.explore(column='color', cmap=['green'], m=fg, legend=False)
-
-fg = folium.FeatureGroup(name='Кампании 18+', show=False)
-m.add_child(fg)
-gdf_points = gpd.GeoDataFrame(points[points.index.isin(set(df.points.iloc[df.groupby("ageFrom").groups[18]]))][['mean_value', 'qty', 'coordinates']])
-gdf_points.set_geometry('coordinates', inplace=True)
-gdf_points.set_crs(epsg=4326, inplace=True)
-
-gdf_points['color'] = gdf_points.mean_value.map(lambda x : 'red' if x<=10 else 'blue' if x<30 else 'green')
-gdf_points.explore(column='color', cmap=['blue', 'green', 'red'], m=fg, legend=False)
-
-fg = folium.FeatureGroup(name='Кампании 24+', show=False)
-m.add_child(fg)
-gdf_points = gpd.GeoDataFrame(points[points.index.isin(set(df.points.iloc[df.groupby("ageFrom").groups[24]]))][['mean_value', 'qty', 'coordinates']])
-gdf_points.set_geometry('coordinates', inplace=True)
-gdf_points.set_crs(epsg=4326, inplace=True)
-
-gdf_points['color'] = gdf_points.mean_value.map(lambda x : 'red' if x<=10 else 'blue' if x<30 else 'green')
-gdf_points.explore(column='color', cmap=['blue', 'green', 'red'], m=fg, legend=False)
-
-m.add_child(folium.LayerControl())
-
-# st_data = st_folium(m, width=725)
-st_data = st_folium(m, width=725)
 
 def create_config(df_records, n_clusters):
     return kmeans2(df_records[['x','y']], n_clusters, minit='points')
@@ -274,7 +208,6 @@ POI = feat_importances.nlargest(10).index
 POI_points = config[0][POI]
 
 POI_points_geometry = from_meters(POI_points[:, 0], POI_points[:, 1])
-
 
 m = folium.Map(location=(55.755826, 37.6173), zoom_start=9, attributionControl=0)
 folium.TileLayer('CartoDB positron', name = 'CartoDB positron').add_to(m)
